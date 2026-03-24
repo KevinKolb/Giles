@@ -1,0 +1,753 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GILES</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap');
+
+  :root {
+    --green: #00ff88;
+    --green-dim: #00aa55;
+    --green-glow: rgba(0,255,136,0.3);
+    --red: #ff3355;
+    --amber: #ffaa00;
+    --bg: #030a06;
+    --panel: #060f08;
+    --border: #0a2a14;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Share Tech Mono', monospace;
+    color: var(--green);
+    overflow: hidden;
+  }
+
+  /* CRT scanlines */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background: repeating-linear-gradient(
+      0deg, transparent, transparent 2px,
+      rgba(0,0,0,0.08) 2px, rgba(0,0,0,0.08) 4px
+    );
+    pointer-events: none; z-index: 1000;
+  }
+
+  /* CRT vignette + flicker */
+  body::after {
+    content: '';
+    position: fixed; inset: 0;
+    background: radial-gradient(ellipse at center, transparent 60%, rgba(0,0,0,0.45) 100%);
+    pointer-events: none; z-index: 999;
+    animation: flicker 0.15s infinite;
+  }
+
+  @keyframes flicker {
+    0%,100%{opacity:1} 92%{opacity:1} 93%{opacity:0.97} 94%{opacity:1} 95%{opacity:0.98}
+  }
+
+  .monitor {
+    width: min(720px, 96vw);
+    background: #050d07;
+    border: 2px solid var(--border);
+    border-radius: 12px;
+    box-shadow:
+      0 0 40px rgba(0,255,136,0.08),
+      0 0 80px rgba(0,255,136,0.04),
+      inset 0 0 60px rgba(0,0,0,0.5);
+    position: relative;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── Top bar ── */
+  .monitor-top {
+    background: #040c06;
+    border-bottom: 1px solid var(--border);
+    padding: 10px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-radius: 12px 12px 0 0;
+    flex-shrink: 0;
+  }
+
+  .logo {
+    font-family: 'Orbitron', monospace;
+    font-weight: 900;
+    font-size: 14px;
+    letter-spacing: 4px;
+    color: var(--green);
+    text-shadow: 0 0 10px var(--green-glow);
+  }
+
+  .top-right { display: flex; align-items: center; gap: 14px; }
+
+  .status-dots { display: flex; gap: 6px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green-dim); transition: all 0.3s; }
+  .dot.active { background: var(--green); box-shadow: 0 0 8px var(--green); }
+  .dot.warn   { background: var(--amber); box-shadow: 0 0 8px var(--amber); }
+  .dot.alert  { background: var(--red);   box-shadow: 0 0 8px var(--red); }
+
+  .clear-btn {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 1px;
+    color: var(--green-dim);
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 3px 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .clear-btn:hover { border-color: var(--green-dim); color: var(--green); }
+
+  /* ── Eyes ── */
+  .face-area {
+    padding: 24px 40px 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    flex-shrink: 0;
+  }
+
+  .eyes-container { display: flex; gap: 60px; align-items: center; }
+
+  .eye-socket {
+    width: 100px; height: 60px;
+    background: #020804;
+    border: 2px solid var(--green-dim);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    position: relative;
+    box-shadow: 0 0 20px rgba(0,255,136,0.15), inset 0 0 20px rgba(0,0,0,0.8);
+    overflow: hidden;
+    transition: border-color 0.3s, box-shadow 0.3s;
+  }
+
+  .eye-socket.listening {
+    border-color: var(--amber);
+    box-shadow: 0 0 25px rgba(255,170,0,0.3), inset 0 0 20px rgba(0,0,0,0.8);
+  }
+  .eye-socket.thinking {
+    border-color: var(--green);
+    box-shadow: 0 0 30px rgba(0,255,136,0.4), inset 0 0 20px rgba(0,0,0,0.8);
+    animation: think-pulse 0.8s ease-in-out infinite alternate;
+  }
+  .eye-socket.speaking {
+    border-color: var(--green);
+    box-shadow: 0 0 35px rgba(0,255,136,0.5), inset 0 0 20px rgba(0,0,0,0.8);
+  }
+
+  @keyframes think-pulse {
+    from { box-shadow: 0 0 20px rgba(0,255,136,0.3), inset 0 0 20px rgba(0,0,0,0.8); }
+    to   { box-shadow: 0 0 45px rgba(0,255,136,0.6), inset 0 0 20px rgba(0,0,0,0.8); }
+  }
+
+  .iris {
+    width: 44px; height: 44px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 35%,
+      #00ff88 0%, #00cc66 30%, #006633 70%, #001a0d 100%);
+    position: absolute;
+    transition: transform 0.12s ease-out;
+    box-shadow: 0 0 12px rgba(0,255,136,0.6);
+  }
+  .iris.spin { animation: iris-spin 1.2s linear infinite; }
+  @keyframes iris-spin {
+    from { transform: translate(0,0) rotate(0deg); }
+    to   { transform: translate(0,0) rotate(360deg); }
+  }
+
+  .pupil {
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    background: #000;
+    position: absolute; top: 50%; left: 50%;
+    transform: translate(-50%,-50%);
+    z-index: 2;
+    transition: all 0.2s;
+  }
+  .pupil.dilated { width: 26px; height: 26px; }
+
+  .eyelid {
+    position: absolute; width: 100%; height: 100%;
+    background: #020804;
+    top: -100%; border-radius: 50%;
+    transition: top 0.08s ease-in;
+    z-index: 10;
+  }
+  .eye-socket.blinking .eyelid { top: 0; }
+
+  /* ── Waveform ── */
+  .waveform {
+    display: flex; gap: 3px; align-items: center;
+    height: 30px; opacity: 0; transition: opacity 0.3s;
+  }
+  .waveform.active { opacity: 1; }
+  .wave-bar {
+    width: 3px; background: var(--green); border-radius: 2px;
+    box-shadow: 0 0 4px var(--green);
+    animation: wave-idle 1s ease-in-out infinite alternate;
+  }
+  @keyframes wave-idle    { from{height:4px} to{height:8px} }
+  .waveform.listening .wave-bar { animation: wave-listen 0.3s ease-in-out infinite alternate; }
+  @keyframes wave-listen  { from{height:4px} to{height:28px} }
+  .waveform.speaking  .wave-bar { animation: wave-speak  0.2s ease-in-out infinite alternate; }
+  @keyframes wave-speak   { from{height:6px} to{height:24px} }
+  .waveform.thinking  .wave-bar {
+    animation: wave-think 0.6s ease-in-out infinite alternate;
+    background: var(--amber); box-shadow: 0 0 4px var(--amber);
+  }
+  @keyframes wave-think { from{height:2px} to{height:14px} }
+
+  /* ── Tool activity panel ── */
+  .tool-panel {
+    margin: 0 20px 8px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+    flex-shrink: 0;
+    min-height: 28px;
+  }
+
+  .tool-panel-header {
+    padding: 5px 10px;
+    background: #040c06;
+    font-size: 9px;
+    letter-spacing: 2px;
+    color: var(--green-dim);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    user-select: none;
+  }
+  .tool-panel-header:hover { color: var(--green); }
+
+  .tool-panel-body {
+    padding: 4px 0;
+    max-height: 100px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--green-dim) transparent;
+  }
+  .tool-panel-body.collapsed { display: none; }
+
+  .tool-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 3px 10px;
+    font-size: 10px;
+    animation: fadeIn 0.2s ease;
+  }
+  .tool-name  { color: var(--amber); letter-spacing: 1px; min-width: 80px; }
+  .tool-input { color: var(--green-dim); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tool-status {
+    min-width: 14px; text-align: center;
+    font-size: 11px;
+  }
+  .tool-status.running { color: var(--amber); animation: blink 0.6s infinite; }
+  .tool-status.done    { color: var(--green); }
+  .tool-status.error   { color: var(--red); }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+  /* ── Transcript ── */
+  .transcript-area {
+    padding: 0 20px 10px;
+    flex: 1;
+    min-height: 120px;
+    max-height: 200px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--green-dim) transparent;
+  }
+
+  .message {
+    font-size: 11px; line-height: 1.5;
+    padding: 6px 10px;
+    border-left: 2px solid transparent;
+    animation: fadeIn 0.3s ease;
+  }
+  @keyframes fadeIn { from{opacity:0;transform:translateY(4px)} to{opacity:1;transform:translateY(0)} }
+
+  .message.user   { border-color: var(--amber); color: var(--amber); }
+  .message.user::before   { content: 'YOU ▸ '; opacity: 0.6; }
+  .message.ai     { border-color: var(--green); color: var(--green); text-shadow: 0 0 8px rgba(0,255,136,0.2); }
+  .message.ai::before     { content: 'GILES ▸ '; opacity: 0.6; }
+  .message.system { border-color: var(--green-dim); color: var(--green-dim); font-size: 10px; opacity: 0.7; }
+
+  /* Typing cursor on latest ai message */
+  .message.ai.typing::after { content: '▋'; animation: blink 0.8s infinite; }
+
+  /* ── Controls ── */
+  .controls {
+    padding: 12px 20px 18px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border-top: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+
+  .talk-btn {
+    padding: 10px 16px;
+    background: transparent;
+    border: 2px solid var(--green-dim);
+    border-radius: 6px;
+    color: var(--green-dim);
+    font-family: 'Orbitron', monospace;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .talk-btn:hover { border-color: var(--green); color: var(--green); box-shadow: 0 0 15px var(--green-glow); }
+  .talk-btn.active {
+    border-color: var(--amber); color: var(--amber);
+    background: rgba(255,170,0,0.05);
+    animation: btn-pulse 0.6s ease-in-out infinite alternate;
+  }
+  @keyframes btn-pulse {
+    from { box-shadow: 0 0 10px rgba(255,170,0,0.2); }
+    to   { box-shadow: 0 0 25px rgba(255,170,0,0.4); }
+  }
+
+  .text-input {
+    flex: 1;
+    padding: 10px 12px;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--green);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 12px;
+    outline: none;
+    transition: border-color 0.2s;
+    caret-color: var(--green);
+  }
+  .text-input::placeholder { color: var(--green-dim); opacity: 0.4; }
+  .text-input:focus { border-color: var(--green-dim); }
+
+  .send-btn {
+    padding: 10px 14px;
+    background: transparent;
+    border: 1px solid var(--green-dim);
+    border-radius: 6px;
+    color: var(--green-dim);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+    flex-shrink: 0;
+  }
+  .send-btn:hover { border-color: var(--green); color: var(--green); }
+  .send-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+  .state-label {
+    font-size: 9px; letter-spacing: 1px;
+    color: var(--green-dim);
+    min-width: 56px; text-align: right; opacity: 0.6;
+    flex-shrink: 0;
+  }
+</style>
+</head>
+<body>
+
+<div class="monitor">
+
+  <!-- Top bar -->
+  <div class="monitor-top">
+    <span class="logo">GILES</span>
+    <div class="top-right">
+      <button class="clear-btn" id="clearBtn">CLEAR</button>
+      <div class="status-dots">
+        <div class="dot active" id="dot1"></div>
+        <div class="dot active" id="dot2"></div>
+        <div class="dot active" id="dot3"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Eyes -->
+  <div class="face-area">
+    <div class="eyes-container">
+      <div class="eye-socket" id="eyeLeft">
+        <div class="iris" id="irisLeft"><div class="pupil" id="pupilLeft"></div></div>
+        <div class="eyelid"></div>
+      </div>
+      <div class="eye-socket" id="eyeRight">
+        <div class="iris" id="irisRight"><div class="pupil" id="pupilRight"></div></div>
+        <div class="eyelid"></div>
+      </div>
+    </div>
+    <div class="waveform" id="waveform"></div>
+  </div>
+
+  <!-- Tool activity -->
+  <div class="tool-panel" id="toolPanel">
+    <div class="tool-panel-header" id="toolPanelHeader">
+      <span>TOOL ACTIVITY</span>
+      <span id="toolPanelToggle">▾</span>
+    </div>
+    <div class="tool-panel-body collapsed" id="toolPanelBody"></div>
+  </div>
+
+  <!-- Transcript -->
+  <div class="transcript-area" id="transcript"></div>
+
+  <!-- Controls -->
+  <div class="controls">
+    <button class="talk-btn" id="talkBtn">🎤 HOLD</button>
+    <input class="text-input" id="textInput" type="text" placeholder="Type a message…" autocomplete="off" />
+    <button class="send-btn" id="sendBtn">▸</button>
+    <span class="state-label" id="stateLabel">STANDBY</span>
+  </div>
+
+</div>
+
+<script>
+// ── State ─────────────────────────────────────────────────────────────────────
+let state = 'idle'; // idle | listening | thinking | speaking
+let recognition = null;
+let mouseX = window.innerWidth / 2;
+let mouseY = window.innerHeight / 2;
+let blinkTimeout;
+let toolPanelOpen = false;
+let currentAudio = null;
+
+// ── Waveform bars ─────────────────────────────────────────────────────────────
+const waveform = document.getElementById('waveform');
+for (let i = 0; i < 20; i++) {
+  const bar = document.createElement('div');
+  bar.className = 'wave-bar';
+  bar.style.animationDelay = `${i * 0.05}s`;
+  bar.style.animationDuration = `${0.6 + Math.random() * 0.6}s`;
+  waveform.appendChild(bar);
+}
+
+// ── Eye animation ─────────────────────────────────────────────────────────────
+document.addEventListener('mousemove', e => { mouseX = e.clientX; mouseY = e.clientY; });
+scheduleBlink();
+requestAnimationFrame(updateGaze);
+
+function scheduleBlink() {
+  blinkTimeout = setTimeout(() => { blink(); scheduleBlink(); }, 2000 + Math.random() * 4000);
+}
+
+function blink() {
+  ['eyeLeft','eyeRight'].forEach(id => {
+    const el = document.getElementById(id);
+    el.classList.add('blinking');
+    setTimeout(() => el.classList.remove('blinking'), 150);
+  });
+}
+
+function updateGaze() {
+  if (state === 'thinking') {
+    const t = Date.now() / 500;
+    setIrisPos('irisLeft',  Math.sin(t) * 12, Math.cos(t * 1.2) * 6);
+    setIrisPos('irisRight', Math.sin(t + 1) * 12, Math.cos(t * 0.9) * 6);
+  } else {
+    ['eyeLeft','eyeRight'].forEach((eyeId, i) => {
+      const rect = document.getElementById(eyeId).getBoundingClientRect();
+      const cx = rect.left + rect.width / 2;
+      const cy = rect.top  + rect.height / 2;
+      const dx = mouseX - cx; const dy = mouseY - cy;
+      const dist = Math.sqrt(dx*dx + dy*dy) || 1;
+      const scale = Math.min(1, dist / 120);
+      const maxMove = 16;
+      setIrisPos(['irisLeft','irisRight'][i],
+        (dx / dist) * maxMove * scale,
+        (dy / dist) * maxMove * scale * 0.5);
+    });
+  }
+  requestAnimationFrame(updateGaze);
+}
+
+function setIrisPos(id, x, y) {
+  const el = document.getElementById(id);
+  if (el) el.style.transform = `translate(${x}px, ${y}px)`;
+}
+
+// ── State machine ─────────────────────────────────────────────────────────────
+function setState(s) {
+  state = s;
+  const sockets = [document.getElementById('eyeLeft'), document.getElementById('eyeRight')];
+  const wf = document.getElementById('waveform');
+  const sl = document.getElementById('stateLabel');
+  const btn = document.getElementById('talkBtn');
+  const sendBtn = document.getElementById('sendBtn');
+  const textInput = document.getElementById('textInput');
+
+  // Reset
+  sockets.forEach(el => { el.className = 'eye-socket'; });
+  wf.className = 'waveform';
+  btn.classList.remove('active');
+  ['pupilLeft','pupilRight'].forEach(id => document.getElementById(id).classList.remove('dilated'));
+
+  if (s === 'idle') {
+    sl.textContent = 'STANDBY';
+    btn.textContent = '🎤 HOLD';
+    sendBtn.disabled = false;
+    textInput.disabled = false;
+    setDots('active');
+
+  } else if (s === 'listening') {
+    sockets.forEach(el => el.classList.add('listening'));
+    wf.classList.add('active', 'listening');
+    sl.textContent = 'LISTENING';
+    btn.classList.add('active');
+    btn.textContent = '🎤 SPEAK';
+    ['pupilLeft','pupilRight'].forEach(id => document.getElementById(id).classList.add('dilated'));
+    sendBtn.disabled = true;
+    textInput.disabled = true;
+    setDots('warn');
+
+  } else if (s === 'thinking') {
+    sockets.forEach(el => el.classList.add('thinking'));
+    wf.classList.add('active', 'thinking');
+    sl.textContent = 'THINKING';
+    btn.textContent = '🎤 HOLD';
+    sendBtn.disabled = true;
+    textInput.disabled = true;
+    setDots('warn');
+
+  } else if (s === 'speaking') {
+    sockets.forEach(el => el.classList.add('speaking'));
+    wf.classList.add('active', 'speaking');
+    sl.textContent = 'SPEAKING';
+    btn.textContent = '🎤 HOLD';
+    sendBtn.disabled = true;
+    textInput.disabled = true;
+    setDots('active');
+  }
+}
+
+function setDots(mode) {
+  const [d1, d2, d3] = [1,2,3].map(i => document.getElementById(`dot${i}`));
+  d1.className = 'dot active';
+  d2.className = mode === 'warn' ? 'dot warn' : mode === 'alert' ? 'dot alert' : 'dot active';
+  d3.className = mode === 'warn' ? 'dot' : mode === 'alert' ? 'dot alert' : 'dot active';
+}
+
+// ── Tool panel ────────────────────────────────────────────────────────────────
+document.getElementById('toolPanelHeader').addEventListener('click', () => {
+  toolPanelOpen = !toolPanelOpen;
+  document.getElementById('toolPanelBody').classList.toggle('collapsed', !toolPanelOpen);
+  document.getElementById('toolPanelToggle').textContent = toolPanelOpen ? '▴' : '▾';
+});
+
+function clearToolPanel() {
+  document.getElementById('toolPanelBody').innerHTML = '';
+  toolPanelOpen = false;
+  document.getElementById('toolPanelBody').classList.add('collapsed');
+  document.getElementById('toolPanelToggle').textContent = '▾';
+}
+
+const toolRowEls = new Map(); // tool entry index → DOM element
+
+function renderToolActivity(toolActivity) {
+  const body = document.getElementById('toolPanelBody');
+  toolActivity.forEach((entry, i) => {
+    let row = toolRowEls.get(i);
+    if (!row) {
+      row = document.createElement('div');
+      row.className = 'tool-row';
+      row.innerHTML = `
+        <span class="tool-name">${entry.tool}</span>
+        <span class="tool-input">${JSON.stringify(entry.input)}</span>
+        <span class="tool-status ${entry.status}">${statusIcon(entry.status)}</span>`;
+      body.appendChild(row);
+      toolRowEls.set(i, row);
+      // Auto-expand when a tool fires
+      if (!toolPanelOpen) {
+        toolPanelOpen = true;
+        body.classList.remove('collapsed');
+        document.getElementById('toolPanelToggle').textContent = '▴';
+      }
+    } else {
+      row.querySelector('.tool-status').className = `tool-status ${entry.status}`;
+      row.querySelector('.tool-status').textContent = statusIcon(entry.status);
+    }
+  });
+}
+
+function statusIcon(s) {
+  return s === 'running' ? '◌' : s === 'done' ? '✓' : '✗';
+}
+
+// ── Transcript ────────────────────────────────────────────────────────────────
+function addMessage(role, text) {
+  const div = document.createElement('div');
+  div.className = `message ${role}`;
+  div.textContent = text;
+  const area = document.getElementById('transcript');
+  area.appendChild(div);
+  area.scrollTop = area.scrollHeight;
+  return div;
+}
+
+// ── Main send flow ────────────────────────────────────────────────────────────
+async function sendMessage(text) {
+  if (!text?.trim() || state !== 'idle') return;
+  if (currentAudio) { currentAudio.pause(); currentAudio = null; }
+
+  clearToolPanel();
+  toolRowEls.clear();
+  addMessage('user', text);
+  setState('thinking');
+
+  try {
+    const res = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: text })
+    });
+
+    const data = await res.json();
+
+    if (data.error) {
+      addMessage('system', `ERROR: ${data.error}`);
+      setState('idle');
+      return;
+    }
+
+    if (data.toolActivity?.length) renderToolActivity(data.toolActivity);
+
+    addMessage('ai', data.reply);
+
+    if (data.audioUrl) {
+      setState('speaking');
+      const audio = new Audio(data.audioUrl);
+      currentAudio = audio;
+      audio.onended = () => { setState('idle'); currentAudio = null; };
+      audio.onerror = () => { setState('idle'); currentAudio = null; };
+      audio.play().catch(() => setState('idle'));
+    } else {
+      setState('idle');
+    }
+
+  } catch (err) {
+    addMessage('system', `CONNECTION ERROR: ${err.message}`);
+    setState('idle');
+  }
+}
+
+// ── Speech recognition ────────────────────────────────────────────────────────
+function setupRecognition() {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) { addMessage('system', 'Speech recognition not available — use text input instead.'); return null; }
+  const r = new SR();
+  r.continuous = false;
+  r.interimResults = true;
+  r.lang = 'en-US';
+
+  r.onresult = e => {
+    const result = e.results[e.results.length - 1];
+    const transcript = result[0].transcript;
+    if (result.isFinal) {
+      document.getElementById('textInput').value = '';
+      sendMessage(transcript);
+    } else {
+      document.getElementById('textInput').value = transcript; // live preview
+    }
+  };
+  r.onerror = e => {
+    if (e.error !== 'no-speech') addMessage('system', `Mic error: ${e.error}`);
+    setState('idle');
+  };
+  r.onend = () => {
+    if (state === 'listening') setState('thinking');
+  };
+  return r;
+}
+
+function startListening() {
+  if (state !== 'idle') return;
+  recognition = setupRecognition();
+  if (!recognition) return;
+  setState('listening');
+  recognition.start();
+}
+
+function stopListening() {
+  if (state !== 'listening') return;
+  if (recognition) recognition.stop();
+}
+
+// ── Talk button ───────────────────────────────────────────────────────────────
+const talkBtn = document.getElementById('talkBtn');
+talkBtn.addEventListener('mousedown',  startListening);
+talkBtn.addEventListener('mouseup',    stopListening);
+talkBtn.addEventListener('mouseleave', stopListening);
+talkBtn.addEventListener('touchstart', e => { e.preventDefault(); startListening(); });
+talkBtn.addEventListener('touchend',   e => { e.preventDefault(); stopListening(); });
+
+document.addEventListener('keydown', e => { if (e.code === 'Space' && !e.repeat && e.target === document.body) { e.preventDefault(); startListening(); } });
+document.addEventListener('keyup',   e => { if (e.code === 'Space' && e.target === document.body) { e.preventDefault(); stopListening(); } });
+
+// ── Text input ────────────────────────────────────────────────────────────────
+const textInput = document.getElementById('textInput');
+const sendBtn   = document.getElementById('sendBtn');
+
+function submitText() {
+  const val = textInput.value.trim();
+  if (!val) return;
+  textInput.value = '';
+  sendMessage(val);
+}
+
+sendBtn.addEventListener('click', submitText);
+textInput.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submitText(); } });
+
+// ── Clear history ─────────────────────────────────────────────────────────────
+document.getElementById('clearBtn').addEventListener('click', async () => {
+  if (!confirm('Clear all conversation history?')) return;
+  await fetch('/api/history', { method: 'DELETE' });
+  document.getElementById('transcript').innerHTML = '';
+  clearToolPanel();
+  addMessage('system', 'MEMORY WIPED. GILES REBORN.');
+});
+
+// ── Load history on startup ───────────────────────────────────────────────────
+(async () => {
+  try {
+    const res = await fetch('/api/history');
+    const history = await res.json();
+    history.slice(-20).forEach(msg => {
+      if (msg.role === 'user' || msg.role === 'assistant') {
+        addMessage(msg.role === 'user' ? 'user' : 'ai', msg.content);
+      }
+    });
+    if (history.length > 0) {
+      addMessage('system', `MEMORY RESTORED — ${history.length} messages loaded.`);
+    } else {
+      addMessage('system', 'GILES ONLINE. SYSTEMS NOMINAL.');
+    }
+  } catch {
+    addMessage('system', 'GILES ONLINE. SYSTEMS NOMINAL.');
+  }
+})();
+</script>
+</body>
+</html>

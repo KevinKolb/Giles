@@ -1,0 +1,4 @@
+.env
+node_modules/
+public/audio/*.wav
+public/audio/*.aiff
