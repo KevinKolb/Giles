@@ -32,30 +32,48 @@ const COLOR_TEMP_MAP = {
 };
 
 // ── Bridge HTTP helpers ────────────────────────────────────────────────────────
-function bridgeBase() {
-  const ip  = process.env.HUE_BRIDGE_IP?.trim();
-  const key = process.env.HUE_API_KEY?.trim();
-  if (!ip || !key) throw new Error(
-    'Hue not configured. POST /api/hue/pair (press the bridge button first).'
-  );
-  return `http://${ip}/api/${key}`;
+function bridges() {
+  const list = [];
+  const ip1 = process.env.HUE_BRIDGE_IP?.trim();
+  const key1 = process.env.HUE_API_KEY?.trim();
+  if (ip1 && key1) list.push(`https://${ip1}/api/${key1}`);
+  const ip2 = process.env.HUE_BRIDGE_IP2?.trim();
+  const key2 = process.env.HUE_API_KEY2?.trim();
+  if (ip2 && key2) list.push(`https://${ip2}/api/${key2}`);
+  if (!list.length) throw new Error('Hue not configured. Add HUE_BRIDGE_IP and HUE_API_KEY to .env.');
+  return list;
 }
 
-async function hueGet(path) {
-  const res = await fetch(`${bridgeBase()}${path}`, { signal: AbortSignal.timeout(5000) });
+// Newer Hue bridges use self-signed TLS certs.
+// undici Agent with rejectUnauthorized:false is the correct way for Node.js built-in fetch.
+import { Agent } from 'undici';
+const insecureAgent = new Agent({ connect: { rejectUnauthorized: false } });
+
+async function hueGet(base, path) {
+  const res = await fetch(`${base}${path}`, {
+    signal: AbortSignal.timeout(5000),
+    dispatcher: insecureAgent,
+  });
   if (!res.ok) throw new Error(`Hue HTTP ${res.status} on GET ${path}`);
   return res.json();
 }
 
-async function huePut(path, body) {
-  const res = await fetch(`${bridgeBase()}${path}`, {
+async function huePut(base, path, body) {
+  const res = await fetch(`${base}${path}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
     signal: AbortSignal.timeout(5000),
+    dispatcher: insecureAgent,
   });
   if (!res.ok) throw new Error(`Hue HTTP ${res.status} on PUT ${path}`);
   return res.json();
+}
+
+// Fetch from all bridges and merge results
+async function hueGetAll(path) {
+  const results = await Promise.all(bridges().map(b => hueGet(b, path).catch(() => ({}))));
+  return Object.assign({}, ...results);
 }
 
 // ── Fuzzy name match ──────────────────────────────────────────────────────────
@@ -125,7 +143,7 @@ function buildState({ on, brightness, color, color_temp }) {
 // ── Exported tool handlers ────────────────────────────────────────────────────
 
 export async function hueList() {
-  const [lights, groups] = await Promise.all([hueGet('/lights'), hueGet('/groups')]);
+  const [lights, groups] = await Promise.all([hueGetAll('/lights'), hueGetAll('/groups')]);
 
   const lightList = Object.entries(lights).map(([id, l]) => ({
     id, name: l.name,
@@ -148,54 +166,63 @@ export async function hueControl({ target, on, brightness, color, color_temp }) 
   if (state.error) return state.error;
   if (Object.keys(state).length === 0) return 'No changes specified.';
 
-  const [lights, groups] = await Promise.all([hueGet('/lights'), hueGet('/groups')]);
+  // Search all bridges
+  for (const base of bridges()) {
+    const [lights, groups] = await Promise.all([
+      hueGet(base, '/lights').catch(() => ({})),
+      hueGet(base, '/groups').catch(() => ({})),
+    ]);
 
-  // Try room first
-  const rooms = Object.entries(groups)
-    .filter(([, g]) => g.type === 'Room' || g.type === 'Zone')
-    .map(([id, g]) => ({ id, name: g.name }));
-  const room = fuzzyMatch(target, rooms);
-  if (room) {
-    await huePut(`/groups/${room.id}/action`, state);
-    return `Applied to room "${room.name}": ${JSON.stringify(state)}`;
-  }
+    const rooms = Object.entries(groups)
+      .filter(([, g]) => g.type === 'Room' || g.type === 'Zone')
+      .map(([id, g]) => ({ id, name: g.name }));
+    const room = fuzzyMatch(target, rooms);
+    if (room) {
+      await huePut(base, `/groups/${room.id}/action`, state);
+      return `Applied to room "${room.name}": ${JSON.stringify(state)}`;
+    }
 
-  // Try individual light
-  const lightCandidates = Object.entries(lights).map(([id, l]) => ({ id, name: l.name }));
-  const light = fuzzyMatch(target, lightCandidates);
-  if (light) {
-    await huePut(`/lights/${light.id}/state`, state);
-    return `Applied to light "${light.name}": ${JSON.stringify(state)}`;
+    const lightCandidates = Object.entries(lights).map(([id, l]) => ({ id, name: l.name }));
+    const light = fuzzyMatch(target, lightCandidates);
+    if (light) {
+      await huePut(base, `/lights/${light.id}/state`, state);
+      return `Applied to light "${light.name}": ${JSON.stringify(state)}`;
+    }
   }
 
   return `No light or room matching "${target}". Use hue_list to see names.`;
 }
 
 export async function hueScene({ action, name, room }) {
-  const scenes = await hueGet('/scenes');
-
   if (action === 'list') {
+    const scenes = await hueGetAll('/scenes');
     const list = Object.entries(scenes).map(([id, s]) => ({ id, name: s.name, group: s.group }));
     return JSON.stringify(list, null, 2);
   }
 
   if (action === 'activate') {
     if (!name) return 'Error: name is required to activate a scene.';
-    let candidates = Object.entries(scenes).map(([id, s]) => ({ id, name: s.name, group: s.group }));
 
-    if (room) {
-      const groups = await hueGet('/groups');
-      const groupMatch = fuzzyMatch(room, Object.entries(groups).map(([id, g]) => ({ id, name: g.name })));
-      if (groupMatch) {
-        const filtered = candidates.filter(c => c.group === groupMatch.id);
-        if (filtered.length) candidates = filtered;
+    for (const base of bridges()) {
+      const scenes = await hueGet(base, '/scenes').catch(() => ({}));
+      let candidates = Object.entries(scenes).map(([id, s]) => ({ id, name: s.name, group: s.group, base }));
+
+      if (room) {
+        const groups = await hueGet(base, '/groups').catch(() => ({}));
+        const groupMatch = fuzzyMatch(room, Object.entries(groups).map(([id, g]) => ({ id, name: g.name })));
+        if (groupMatch) {
+          const filtered = candidates.filter(c => c.group === groupMatch.id);
+          if (filtered.length) candidates = filtered;
+        }
+      }
+
+      const scene = fuzzyMatch(name, candidates);
+      if (scene) {
+        await huePut(base, `/groups/${scene.group}/action`, { scene: scene.id });
+        return `Scene "${scene.name}" activated.`;
       }
     }
-
-    const scene = fuzzyMatch(name, candidates);
-    if (!scene) return `No scene matching "${name}". Use action "list" to see available scenes.`;
-    await huePut(`/groups/${scene.group}/action`, { scene: scene.id });
-    return `Scene "${scene.name}" activated.`;
+    return `No scene matching "${name}". Use action "list" to see available scenes.`;
   }
 
   return 'Error: action must be "list" or "activate".';
@@ -213,7 +240,7 @@ export async function discoverAndPair() {
     bridgeIp = bridges[0].internalipaddress;
   }
 
-  const pairRes = await fetch(`http://${bridgeIp}/api`, {
+  const pairRes = await fetch(`https://${bridgeIp}/api`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ devicetype: 'giles#mac' }),

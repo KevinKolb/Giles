@@ -244,7 +244,6 @@
         <div class="eyelid"></div>
       </div>
     </div>
-    <div class="waveform" id="waveform"></div>
   </div>
 
   <!-- Transcript -->
@@ -252,8 +251,7 @@
 
   <!-- Controls -->
   <div class="controls">
-    <button class="talk-btn" id="talkBtn">[ HOLD TO TALK ]</button>
-    <input class="text-input" id="textInput" type="text" placeholder="or type here…" autocomplete="off" />
+    <input class="text-input" id="textInput" type="text" placeholder="type here and press enter…" autocomplete="off" />
     <span class="state-label" id="stateLabel">STANDBY</span>
   </div>
 
@@ -264,21 +262,8 @@
 const OLLAMA_URL = 'http://localhost:11434/api/chat';
 const OLLAMA_MODEL = 'llama3.2';
 let state = 'idle';
-let recognition = null;
-let synth = window.speechSynthesis;
 let conversationHistory = [];
 let mouseX = window.innerWidth / 2, mouseY = window.innerHeight / 2;
-// Change OLLAMA_MODEL at top of script to swap models (e.g. 'mistral', 'llama3.1:8b')
-
-// ── Waveform ──────────────────────────────────────────────────────────────────
-const waveform = document.getElementById('waveform');
-for (let i = 0; i < 20; i++) {
-  const bar = document.createElement('div');
-  bar.className = 'wave-bar';
-  bar.style.animationDelay = `${i * 0.05}s`;
-  bar.style.animationDuration = `${0.6 + Math.random() * 0.6}s`;
-  waveform.appendChild(bar);
-}
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
 document.getElementById('apiOverlay').classList.add('hidden');
@@ -378,44 +363,6 @@ function addMessage(role, text) {
   area.scrollTop = area.scrollHeight;
 }
 
-// ── Speech recognition ────────────────────────────────────────────────────────
-function setupRecognition() {
-  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SR) { addMessage('system', 'Speech recognition not supported — use text input.'); return null; }
-  const r = new SR();
-  r.continuous = false; r.interimResults = false; r.lang = 'en-US';
-  r.onresult = e => {
-    const text = e.results[0][0].transcript;
-    addMessage('user', text);
-    setState('thinking');
-    sendToAI(text);
-  };
-  r.onerror = e => { if (e.error !== 'no-speech') addMessage('system', `Mic error: ${e.error}`); setState('idle'); };
-  r.onend   = () => { if (state === 'listening') setState('thinking'); };
-  return r;
-}
-
-function startListening() {
-  if (state !== 'idle' || !apiKey) return;
-  synth.cancel();
-  recognition = setupRecognition();
-  if (!recognition) return;
-  setState('listening');
-  try { recognition.start(); } catch(e) { setState('idle'); }
-}
-function stopListening() {
-  if (state !== 'listening') return;
-  try { recognition.stop(); } catch(e) {}
-}
-
-const talkBtn = document.getElementById('talkBtn');
-talkBtn.addEventListener('mousedown',  startListening);
-talkBtn.addEventListener('mouseup',    stopListening);
-talkBtn.addEventListener('mouseleave', stopListening);
-talkBtn.addEventListener('touchstart', e => { e.preventDefault(); startListening(); });
-talkBtn.addEventListener('touchend',   e => { e.preventDefault(); stopListening(); });
-document.addEventListener('keydown', e => { if (e.code === 'Space' && !e.repeat && e.target === document.body) { e.preventDefault(); startListening(); } });
-document.addEventListener('keyup',   e => { if (e.code === 'Space' && e.target === document.body) { e.preventDefault(); stopListening(); } });
 
 // ── Text input ────────────────────────────────────────────────────────────────
 const textInput = document.getElementById('textInput');
@@ -461,27 +408,13 @@ async function sendToAI(userText) {
 
     conversationHistory.push({ role: 'assistant', content: reply });
     addMessage('ai', reply);
-    speak(reply);
+    setState('idle');
   } catch (err) {
     addMessage('system', `ERROR: Is Ollama running? (ollama serve)`);
     setState('idle');
   }
 }
 
-// ── TTS ───────────────────────────────────────────────────────────────────────
-function speak(text) {
-  setState('speaking');
-  const utt = new SpeechSynthesisUtterance(text);
-  utt.rate = 0.92; utt.pitch = 0.75; utt.volume = 1;
-  const voices = synth.getVoices();
-  const preferred = voices.find(v => v.name.includes('Google') && v.lang.startsWith('en'))
-                 || voices.find(v => v.lang.startsWith('en'));
-  if (preferred) utt.voice = preferred;
-  utt.onend = () => setState('idle');
-  utt.onerror = () => setState('idle');
-  synth.speak(utt);
-}
-if (synth.onvoiceschanged !== undefined) synth.onvoiceschanged = () => synth.getVoices();
 </script>
 </body>
 </html>
