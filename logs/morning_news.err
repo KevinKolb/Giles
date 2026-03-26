@@ -1,0 +1,11 @@
+/Users/kevinkolb/Code/Giles/.env:15: command not found: ljdh
+Traceback (most recent call last):
+  File "/Users/kevinkolb/Code/Giles/scripts/morning_news.py", line 443, in <module>
+    main()
+    ~~~~^^
+  File "/Users/kevinkolb/Code/Giles/scripts/morning_news.py", line 437, in main
+    send_email(html, subject)
+    ~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "/Users/kevinkolb/Code/Giles/scripts/morning_news.py", line 390, in send_email
+    raise ValueError("Set NEWS_SENDER and NEWS_PASSWORD env vars.")
+ValueError: Set NEWS_SENDER and NEWS_PASSWORD env vars.
