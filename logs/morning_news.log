@@ -6,3 +6,63 @@
    Got 4 stories.
    ✓ JSON → /tmp/nom_today.json
    ✓ TTS script → /tmp/nom_today_tts.txt
+
+🌅 New Orleans Morning — Thursday, March 26, 2026 06:00 AM
+   Searching the web for stories...
+   Found 18 search results.
+   Asking llama3.1:8b to write the digest...
+   Got 5 stories.
+   ✓ JSON → /tmp/nom_today.json
+   ✓ TTS script → /tmp/nom_today_tts.txt
+
+🌅 New Orleans Morning — Friday, March 27, 2026 06:00 AM
+   Searching the web for stories...
+   Found 18 search results.
+   Asking llama3.1:8b to write the digest...
+
+🌅 New Orleans Morning — Saturday, March 28, 2026 06:00 AM
+   Searching the web for stories...
+   Found 18 search results.
+   Asking llama3.1:8b to write the digest...
+
+🌅 New Orleans Morning — Sunday, March 29, 2026 06:00 AM
+   Searching the web for stories...
+   [!] Search error for 'Louisiana human interest story this week': No results found.
+   [!] Search error for 'American arts nature human interest story': No results found.
+   Found 12 search results.
+   Asking llama3.1:8b to write the digest...
+
+🌅 New Orleans Morning — Monday, March 30, 2026 06:00 AM
+   Searching the web for stories...
+   Found 18 search results.
+   Asking llama3.1:8b to write the digest...
+   Got 5 stories.
+   ✓ JSON → /tmp/nom_today.json
+   ✓ TTS script → /tmp/nom_today_tts.txt
+   ✓ Email sent to kevinmkolb@gmail.com
+   Done. Good morning. ☕
+
+
+🌅 New Orleans Morning — Tuesday, March 31, 2026 06:00 AM
+   Searching the web for stories...
+   Found 18 search results.
+   Asking llama3.1:8b to write the digest...
+   [!] JSON parse failed: Invalid control character at: line 31 column 426 (char 1874). Using mock data.
+   ✓ JSON → /tmp/nom_today.json
+   ✓ TTS script → /tmp/nom_today_tts.txt
+   ✓ Email sent to kevinmkolb@gmail.com
+   Done. Good morning. ☕
+
+
+🌅 New Orleans Morning — Wednesday, April 01, 2026 06:00 AM
+   Searching the web for stories...
+   [!] Search error for 'Louisiana human interest story this week': No results found.
+   [!] Search error for 'American arts nature human interest story': No results found.
+   Found 12 search results.
+   Asking llama3.1:8b to write the digest...
+   Got 4 stories.
+   ✓ JSON → /tmp/nom_today.json
+   ✓ TTS script → /tmp/nom_today_tts.txt
+   ✓ Email sent to kevinmkolb@gmail.com
+   Done. Good morning. ☕
+
